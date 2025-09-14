@@ -1,11 +1,39 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, redirect, url_for, session, flash
 import os
 import json
 from werkzeug.utils import secure_filename
 import uuid
+import bcrypt
+from pymongo import MongoClient
+from bson import ObjectId
+from datetime import datetime, timezone
+import re
+import traceback
 
 app = Flask(__name__)
-app.secret_key = 'your-secret-key-here'  # Change this in production
+app.secret_key = 'your-secret-key-change-in-production'  # Change this in production
+
+# MongoDB Configuration
+MONGODB_URI = "mongodb+srv://kunalsurade016_db_user:jc3YqkAHupwV6jk2@authentication.yykrupt.mongodb.net/gorakshaai?retryWrites=true&w=majority"
+
+try:
+    # Simple MongoDB connection
+    client = MongoClient(MONGODB_URI)
+    
+    # Test the connection with a simple ping
+    client.admin.command('ping')
+    db = client['gorakshaai']
+    users_collection = db['users']
+    predictions_collection = db['predictions']
+    print("✅ MongoDB connection successful!")
+except Exception as e:
+    print(f"❌ MongoDB connection failed: {e}")
+    print("⚠️  Starting without database - authentication will not work")
+    # Set None values to prevent crashes
+    client = None
+    db = None
+    users_collection = None
+    predictions_collection = None
 
 # Configuration
 UPLOAD_FOLDER = 'static/uploads'
@@ -20,15 +48,251 @@ def allowed_file(filename):
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+def validate_email(email):
+    """Validate email format"""
+    pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    return re.match(pattern, email)
+
+def validate_password(password):
+    """Validate password strength"""
+    if len(password) < 8:
+        return False, "Password must be at least 8 characters long"
+    if not re.search(r'[A-Z]', password):
+        return False, "Password must contain at least one uppercase letter"
+    if not re.search(r'[a-z]', password):
+        return False, "Password must contain at least one lowercase letter"
+    if not re.search(r'[0-9]', password):
+        return False, "Password must contain at least one number"
+    return True, "Password is valid"
+
+def hash_password(password):
+    """Hash password using bcrypt"""
+    return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
+
+def check_password(password, hashed):
+    """Check password against hash"""
+    return bcrypt.checkpw(password.encode('utf-8'), hashed)
+
 @app.route('/')
 def index():
     """Main landing page"""
     return render_template('index.html')
 
+@app.route('/login')
+def login_page():
+    """Login page"""
+    if 'user_id' in session:
+        return redirect(url_for('dashboard'))
+    return render_template('login.html')
+
+@app.route('/signup')
+def signup_page():
+    """Signup page"""
+    if 'user_id' in session:
+        return redirect(url_for('dashboard'))
+    return render_template('signup.html')
+
+@app.route('/dashboard')
+def dashboard():
+    """Main dashboard after login"""
+    if 'user_id' not in session:
+        return redirect(url_for('login_page'))
+    
+    # Check if database is available
+    if users_collection is None or predictions_collection is None:
+        # Still show dashboard but with limited functionality
+        return render_template('dashboard.html', 
+                             user={'name': session.get('user_name', 'User'), 
+                                   'email': session.get('user_email', '')}, 
+                             recent_predictions=[],
+                             db_unavailable=True)
+    
+    user = users_collection.find_one({'_id': ObjectId(session['user_id'])})
+    if not user:
+        session.clear()
+        return redirect(url_for('login_page'))
+    
+    # Get user's recent predictions
+    recent_predictions = list(predictions_collection.find(
+        {'user_id': session['user_id']}
+    ).sort('created_at', -1).limit(5))
+    
+    return render_template('dashboard.html', user=user, recent_predictions=recent_predictions)
+
+@app.route('/auth/login', methods=['POST'])
+def login():
+    """Handle login form submission"""
+    try:
+        # Check if database is available
+        if users_collection is None:
+            return jsonify({'success': False, 'message': 'Database connection unavailable. Please try again later.'}), 503
+            
+        data = request.get_json() if request.is_json else request.form
+        email = data.get('email', '').strip().lower()
+        password = data.get('password', '')
+        
+        if not email or not password:
+            return jsonify({'success': False, 'message': 'Email and password are required'}), 400
+        
+        # Find user by email
+        user = users_collection.find_one({'email': email})
+        if not user:
+            return jsonify({'success': False, 'message': 'Invalid email or password'}), 401
+        
+        # Check password
+        if not check_password(password, user['password']):
+            return jsonify({'success': False, 'message': 'Invalid email or password'}), 401
+        
+        # Update last login
+        users_collection.update_one(
+            {'_id': user['_id']},
+            {'$set': {'last_login': datetime.utcnow()}}
+        )
+        
+        # Set session
+        session['user_id'] = str(user['_id'])
+        session['user_name'] = user['name']
+        session['user_email'] = user['email']
+        
+        return jsonify({
+            'success': True, 
+            'message': 'Login successful',
+            'redirect': url_for('dashboard')
+        })
+        
+    except Exception as e:
+        print(f"❌ Login error: {str(e)}")
+        return jsonify({'success': False, 'message': 'An error occurred during login'}), 500
+
+@app.route('/auth/signup', methods=['POST'])
+def signup():
+    """Handle signup form submission"""
+    try:
+        print("🔍 Signup request received")  # Debug log
+        
+        # Check if database is available
+        if users_collection is None:
+            print("❌ Database not available")
+            return jsonify({'success': False, 'message': 'Database connection unavailable. Please try again later.'}), 503
+            
+        # Get data from request
+        data = request.get_json() if request.is_json else request.form
+        print(f"🔍 Request content type: {request.content_type}")  # Debug log
+        print(f"🔍 Request is_json: {request.is_json}")  # Debug log
+        print(f"🔍 Signup data received: {data}")  # Debug log
+        
+        name = data.get('name', '').strip()
+        email = data.get('email', '').strip().lower()
+        password = data.get('password', '')
+        confirm_password = data.get('confirm_password', '')
+        
+        print(f"🔍 Parsed data - Name: {name}, Email: {email}, Password length: {len(password) if password else 0}")  # Debug log
+        
+        # Validation
+        if not all([name, email, password, confirm_password]):
+            print("❌ Missing required fields")  # Debug log
+            missing_fields = []
+            if not name: missing_fields.append('name')
+            if not email: missing_fields.append('email')
+            if not password: missing_fields.append('password')
+            if not confirm_password: missing_fields.append('confirm_password')
+            print(f"❌ Missing fields: {missing_fields}")
+            return jsonify({'success': False, 'message': 'All fields are required'}), 400
+        
+        if password != confirm_password:
+            print("❌ Passwords don't match")  # Debug log
+            return jsonify({'success': False, 'message': 'Passwords do not match'}), 400
+        
+        if not validate_email(email):
+            print(f"❌ Invalid email: {email}")  # Debug log
+            return jsonify({'success': False, 'message': 'Invalid email format'}), 400
+        
+        is_valid, message = validate_password(password)
+        if not is_valid:
+            print(f"❌ Password validation failed: {message}")  # Debug log
+            return jsonify({'success': False, 'message': message}), 400
+        
+        # Check if user already exists
+        print(f"🔍 Checking if user exists: {email}")  # Debug log
+        existing_user = users_collection.find_one({'email': email})
+        if existing_user:
+            print(f"❌ User already exists: {email}")  # Debug log
+            return jsonify({'success': False, 'message': 'Email already registered'}), 409
+        
+        # Create new user
+        print(f"📝 Creating new user: {email}")  # Debug log
+        hashed_password = hash_password(password)
+        user_data = {
+            'name': name,
+            'email': email,
+            'password': hashed_password,
+            'created_at': datetime.utcnow(),
+            'last_login': None,
+            'is_active': True
+        }
+        
+        print(f"💾 Inserting user data into MongoDB...")  # Debug log
+        result = users_collection.insert_one(user_data)
+        print(f"✅ User created with ID: {result.inserted_id}")  # Debug log
+        
+        # Set session
+        session['user_id'] = str(result.inserted_id)
+        session['user_name'] = name
+        session['user_email'] = email
+        
+        print(f"✅ Session created for user: {name}")  # Debug log
+        
+        return jsonify({
+            'success': True, 
+            'message': 'Account created successfully',
+            'redirect': url_for('dashboard')
+        })
+        
+    except Exception as e:
+        print(f"❌ Signup error: {str(e)}")  # Debug log
+        print(f"❌ Error type: {type(e).__name__}")  # Debug log
+        import traceback
+        print(f"❌ Full traceback: {traceback.format_exc()}")  # Debug log
+        return jsonify({'success': False, 'message': 'An error occurred during signup'}), 500
+        import traceback
+        print(f"❌ Full traceback: {traceback.format_exc()}")  # Debug log
+        return jsonify({'success': False, 'message': f'An error occurred during signup: {str(e)}'}), 500
+
+@app.route('/test-db')
+def test_db():
+    """Test MongoDB connection"""
+    try:
+        # Test connection
+        client.admin.command('ping')
+        
+        # Test collection access
+        count = users_collection.count_documents({})
+        
+        return jsonify({
+            'success': True,
+            'message': 'Database connection successful',
+            'user_count': count
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Database connection failed: {str(e)}'
+        }), 500
+
+@app.route('/auth/logout')
+def logout():
+    """Handle logout"""
+    session.clear()
+    return redirect(url_for('index'))
+
 @app.route('/predict_disease', methods=['POST'])
 def predict_disease():
     """Handle disease prediction requests"""
     try:
+        # Check if user is logged in
+        if 'user_id' not in session:
+            return jsonify({'success': False, 'message': 'Please login to use disease prediction'}), 401
+        
         # Get form data
         animal_type = request.form.get('animal_type')
         symptoms = json.loads(request.form.get('symptoms', '[]'))
@@ -53,6 +317,21 @@ def predict_disease():
         prediction_result = mock_disease_prediction(
             animal_type, symptoms, age, weight, temperature, additional_info
         )
+        
+        # Save prediction to database
+        prediction_data = {
+            'user_id': session['user_id'],
+            'animal_type': animal_type,
+            'symptoms': symptoms,
+            'age': age,
+            'weight': weight,
+            'temperature': temperature,
+            'additional_info': additional_info,
+            'uploaded_file': uploaded_file,
+            'prediction': prediction_result,
+            'created_at': datetime.utcnow()
+        }
+        predictions_collection.insert_one(prediction_data)
         
         return jsonify({
             'success': True,

@@ -20,8 +20,8 @@
                 <li><a href="#contact">Contact</a></li>
             </ul>
             <div class="auth-buttons">
-                <a href="#" class="btn btn-login">Login</a>
-                <a href="#" class="btn btn-signup">Sign Up</a>
+                <a href="{{ url_for('login_page') }}" class="btn btn-login">Login</a>
+                <a href="{{ url_for('signup_page') }}" class="btn btn-signup">Sign Up</a>
             </div>
         </nav>
     </header>
@@ -45,8 +45,8 @@
                     <h3>Veterinary Consultant</h3>
                     <p>Connect with expert veterinarians and get professional advice for your animals' health and wellness.</p>
                     <div class="auth-buttons">
-                        <button class="btn btn-signup">Sign Up</button>
-                        <button class="btn btn-login">Login</button>
+                        <a href="{{ url_for('signup_page') }}" class="btn btn-signup">Sign Up</a>
+                        <a href="{{ url_for('login_page') }}" class="btn btn-login">Login</a>
                     </div>
                 </div>
                 
