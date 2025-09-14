@@ -22,8 +22,8 @@
             </ul>
             <div class="user-menu">
                 <div class="user-info" onclick="toggleUserDropdown()">
-                    <div class="user-avatar">{{ session['username'][0].upper() if session['username'] else 'U' }}</div>
-                    <span class="user-name">{{ session['username'].title() if session['username'] else 'User' }}</span>
+                    <div class="user-avatar">{{ session['user_name'][0].upper() if session['user_name'] else 'U' }}</div>
+                    <span class="user-name">{{ session['user_name'].title() if session['user_name'] else 'User' }}</span>
                     <span class="dropdown-arrow">▼</span>
                 </div>
                 <div class="user-dropdown" id="userDropdown">
@@ -53,8 +53,8 @@
                     <h3>Veterinary Consultant</h3>
                     <p>Connect with expert veterinarians and get professional advice for your animals' health and wellness.</p>
                 </div>
-                
-                <div class="feature-card">
+
+                <div class="feature-card clickable" onclick="location.href='{{ url_for('disease_detection') }}'">
                     <span class="feature-icon">🔬</span>
                     <h3>Disease Detection</h3>
                     <p>Upload photos or input symptoms to identify diseases instantly with our advanced AI diagnostic model.</p>

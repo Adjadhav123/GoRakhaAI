@@ -9,6 +9,11 @@ from bson import ObjectId
 from datetime import datetime, timezone
 import re
 import traceback
+import torch
+from ultralytics import YOLO
+from PIL import Image
+import io
+import numpy as np
 
 app = Flask(__name__)
 app.secret_key = 'your-secret-key-change-in-production'  # Change this in production
@@ -43,6 +48,27 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 
 # Create upload directory if it doesn't exist
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+# Initialize YOLO models
+models = {}
+try:
+    # Load cat disease detection model
+    if os.path.exists('models/cat_disease_best.pt'):
+        models['cat'] = YOLO('models/cat_disease_best.pt')
+        print("✅ Cat disease model loaded successfully!")
+    else:
+        print("⚠️  Cat disease model not found at models/cat_disease_best.pt")
+    
+    # Load cow disease detection model  
+    if os.path.exists('models/lumpy_disease_best.pt'):
+        models['cow'] = YOLO('models/lumpy_disease_best.pt')
+        print("✅ Cow disease model loaded successfully!")
+    else:
+        print("⚠️  Cow disease model not found at models/lumpy_disease_best.pt")
+        
+except Exception as e:
+    print(f"❌ Error loading YOLO models: {e}")
+    models = {}
 
 def allowed_file(filename):
     return '.' in filename and \
@@ -490,6 +516,227 @@ def about():
 def contact():
     """Contact page"""
     return render_template('contact.html')
+
+@app.route('/disease_detection')
+def disease_detection():
+    """Disease detection main page - animal selection"""
+    if 'user_id' not in session:
+        return redirect(url_for('login_page'))
+    return render_template('disease_detection.html')
+
+@app.route('/cat_detection')
+def cat_detection():
+    """Cat disease detection page"""
+    if 'user_id' not in session:
+        return redirect(url_for('login_page'))
+    return render_template('cat_detection.html')
+
+@app.route('/predict/cat', methods=['POST'])
+def predict_cat():
+    """Predict cat diseases using YOLOv8 model"""
+    try:
+        # Check if model is loaded
+        if 'cat' not in models:
+            return jsonify({
+                'success': False,
+                'error': 'Cat disease detection model is not available'
+            })
+
+        # Check if image is provided
+        if 'image' not in request.files:
+            return jsonify({
+                'success': False,
+                'error': 'No image file provided'
+            })
+
+        file = request.files['image']
+        if file.filename == '':
+            return jsonify({
+                'success': False,
+                'error': 'No image file selected'
+            })
+
+        if file and allowed_file(file.filename):
+            # Read image
+            image_bytes = file.read()
+            image = Image.open(io.BytesIO(image_bytes)).convert('RGB')
+            
+            # Run prediction
+            results = models['cat'](image)
+            
+            # Process results
+            predictions = []
+            for result in results:
+                for box in result.boxes:
+                    class_id = int(box.cls[0])
+                    confidence = float(box.conf[0])
+                    class_name = result.names[class_id]
+                    
+                    predictions.append({
+                        'class': class_name,
+                        'confidence': confidence
+                    })
+            
+            # Sort by confidence
+            predictions.sort(key=lambda x: x['confidence'], reverse=True)
+            
+            # Check if highest confidence is below 60%
+            if predictions and predictions[0]['confidence'] < 0.6:
+                return jsonify({
+                    'success': False,
+                    'error': 'Image quality is too low or does not contain a proper cat image. Please upload a clearer image of a cat.',
+                    'confidence': predictions[0]['confidence'] if predictions else 0.0
+                })
+            
+            # If no predictions, add a default
+            if not predictions:
+                return jsonify({
+                    'success': False,
+                    'error': 'No cat detected in the image. Please upload a clear image of a cat.',
+                    'confidence': 0.0
+                })
+            
+            # Store prediction in database if available
+            if predictions_collection is not None:
+                try:
+                    prediction_doc = {
+                        'user_id': session.get('user_id'),
+                        'username': session.get('user_name'),
+                        'animal_type': 'cat',
+                        'predictions': predictions,
+                        'timestamp': datetime.now(timezone.utc),
+                        'model_used': 'cat_disease_best.pt'
+                    }
+                    predictions_collection.insert_one(prediction_doc)
+                except Exception as db_error:
+                    print(f"Database error: {db_error}")
+            
+            return jsonify({
+                'success': True,
+                'predictions': predictions,
+                'model_info': 'YOLOv8 Cat Disease Detection Model'
+            })
+        
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Invalid file format. Supported formats: PNG, JPG, JPEG, WebP'
+            })
+            
+    except Exception as e:
+        print(f"Error in cat prediction: {e}")
+        print(f"Error traceback: {traceback.format_exc()}")
+        return jsonify({
+            'success': False,
+            'error': f'Prediction failed: {str(e)}'
+        })
+
+@app.route('/predict/cow', methods=['POST'])
+def predict_cow():
+    """Predict cow diseases using YOLOv8 model"""
+    try:
+        # Check if model is loaded
+        if 'cow' not in models:
+            return jsonify({
+                'success': False,
+                'error': 'Cow disease detection model is not available'
+            })
+
+        # Check if image is provided
+        if 'image' not in request.files:
+            return jsonify({
+                'success': False,
+                'error': 'No image file provided'
+            })
+
+        file = request.files['image']
+        if file.filename == '':
+            return jsonify({
+                'success': False,
+                'error': 'No image file selected'
+            })
+
+        if file and allowed_file(file.filename):
+            # Read image
+            image_bytes = file.read()
+            image = Image.open(io.BytesIO(image_bytes)).convert('RGB')
+            
+            # Run prediction
+            results = models['cow'](image)
+            
+            # Process results
+            predictions = []
+            for result in results:
+                for box in result.boxes:
+                    class_id = int(box.cls[0])
+                    confidence = float(box.conf[0])
+                    class_name = result.names[class_id]
+                    
+                    predictions.append({
+                        'class': class_name,
+                        'confidence': confidence
+                    })
+            
+            # Sort by confidence
+            predictions.sort(key=lambda x: x['confidence'], reverse=True)
+            
+            # Check if highest confidence is below 60%
+            if predictions and predictions[0]['confidence'] < 0.6:
+                return jsonify({
+                    'success': False,
+                    'error': 'Image quality is too low or does not contain a proper cow image. Please upload a clearer image of a cow.',
+                    'confidence': predictions[0]['confidence'] if predictions else 0.0
+                })
+            
+            # If no predictions, add a default
+            if not predictions:
+                return jsonify({
+                    'success': False,
+                    'error': 'No cow detected in the image. Please upload a clear image of a cow.',
+                    'confidence': 0.0
+                })
+            
+            # Store prediction in database if available
+            if predictions_collection is not None:
+                try:
+                    prediction_doc = {
+                        'user_id': session.get('user_id'),
+                        'username': session.get('user_name'),
+                        'animal_type': 'cow',
+                        'predictions': predictions,
+                        'timestamp': datetime.now(timezone.utc),
+                        'model_used': 'lumpy_disease_best.pt'
+                    }
+                    predictions_collection.insert_one(prediction_doc)
+                except Exception as db_error:
+                    print(f"Database error: {db_error}")
+            
+            return jsonify({
+                'success': True,
+                'predictions': predictions,
+                'model_info': 'YOLOv8 Cow Disease Detection Model'
+            })
+        
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Invalid file format. Supported formats: PNG, JPG, JPEG, WebP'
+            })
+            
+    except Exception as e:
+        print(f"Error in cow prediction: {e}")
+        print(f"Error traceback: {traceback.format_exc()}")
+        return jsonify({
+            'success': False,
+            'error': f'Prediction failed: {str(e)}'
+        })
+
+@app.route('/cow_detection')
+def cow_detection():
+    """Cow disease detection page"""
+    if 'user_id' not in session:
+        return redirect(url_for('login_page'))
+    return render_template('cow_detection.html')
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
