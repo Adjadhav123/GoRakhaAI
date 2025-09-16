@@ -2,94 +2,23 @@
 
 document.addEventListener('DOMContentLoaded', function() {
     // Initialize the application
-    initializeModal();
     initializeContactForm();
     initializeSmoothScrolling();
-    initializePredictionForm();
 });
 
-// Modal functionality
-function initializeModal() {
-    const modal = document.getElementById('predictionModal');
-    const span = document.getElementsByClassName('close')[0];
-
-    // Open modal function (attached to global scope for onclick handler)
-    window.openPredictionModal = function() {
-        modal.style.display = 'block';
-        resetPredictionForm();
-    }
-
-    // Close modal when X is clicked
-    if (span) {
-        span.onclick = function() {
-            modal.style.display = 'none';
-        }
-    }
-
-    // Close modal when clicking outside
-    window.onclick = function(event) {
-        if (event.target === modal) {
-            modal.style.display = 'none';
-        }
-    }
-
-    // Close modal on Escape key
-    document.addEventListener('keydown', function(event) {
-        if (event.key === 'Escape' && modal.style.display === 'block') {
-            modal.style.display = 'none';
-        }
-    });
-}
-
-// File upload handler
-window.handleFileUpload = function(input) {
-    if (input.files && input.files[0]) {
-        const fileName = input.files[0].name;
-        const fileSize = (input.files[0].size / 1024 / 1024).toFixed(2); // Size in MB
-        const uploadArea = input.parentElement;
-        
-        // Validate file size (max 16MB)
-        if (input.files[0].size > 16 * 1024 * 1024) {
-            showAlert('File size must be less than 16MB', 'error');
-            input.value = '';
-            return;
-        }
-        
-        // Validate file type
-        const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
-        if (!allowedTypes.includes(input.files[0].type)) {
-            showAlert('Please upload a valid image file (JPG, PNG, or WebP)', 'error');
-            input.value = '';
-            return;
-        }
-        
-        uploadArea.innerHTML = `
-            <p>📷 ${fileName}</p>
-            <small>File uploaded successfully (${fileSize} MB)</small>
-        `;
-        uploadArea.classList.add('file-uploaded');
-    }
-}
-
-// Initialize contact form
+// Contact form functionality
 function initializeContactForm() {
     const contactForm = document.getElementById('contactForm');
-    
     if (contactForm) {
         contactForm.addEventListener('submit', function(e) {
             e.preventDefault();
             
             // Get form data
-            const formData = new FormData(this);
-            const data = {
-                name: formData.get('name'),
-                email: formData.get('email'),
-                subject: formData.get('subject'),
-                message: formData.get('message')
-            };
+            const formData = new FormData(contactForm);
+            const data = Object.fromEntries(formData);
             
             // Show loading state
-            const submitBtn = this.querySelector('button[type="submit"]');
+            const submitBtn = contactForm.querySelector('button[type="submit"]');
             const originalText = submitBtn.textContent;
             submitBtn.textContent = 'Sending...';
             submitBtn.disabled = true;
@@ -100,7 +29,93 @@ function initializeContactForm() {
                 contactForm.reset();
                 submitBtn.textContent = originalText;
                 submitBtn.disabled = false;
-            }, 1500);
+            }, 2000);
+        });
+    }
+}
+
+// Smooth scrolling for anchor links
+function initializeSmoothScrolling() {
+    const anchors = document.querySelectorAll('a[href^="#"]');
+    
+    anchors.forEach(anchor => {
+        anchor.addEventListener('click', function(e) {
+            e.preventDefault();
+            
+            const target = document.querySelector(this.getAttribute('href'));
+            if (target) {
+                target.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'start'
+                });
+            }
+        });
+    });
+}
+
+// Utility function to show alerts
+function showAlert(message, type = 'info') {
+    // Create alert element
+    const alert = document.createElement('div');
+    alert.className = `alert alert-${type}`;
+    alert.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 15px 20px;
+        background: ${type === 'success' ? '#d4edda' : type === 'error' ? '#f8d7da' : '#d1ecf1'};
+        color: ${type === 'success' ? '#155724' : type === 'error' ? '#721c24' : '#0c5460'};
+        border: 1px solid ${type === 'success' ? '#c3e6cb' : type === 'error' ? '#f5c6cb' : '#b6d4fe'};
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        z-index: 10000;
+        font-family: inherit;
+        max-width: 300px;
+        animation: slideInRight 0.3s ease-out;
+    `;
+    alert.textContent = message;
+    
+    // Add to page
+    document.body.appendChild(alert);
+    
+    // Auto remove after 5 seconds
+    setTimeout(() => {
+        alert.style.animation = 'slideOutRight 0.3s ease-in forwards';
+        setTimeout(() => {
+            if (document.body.contains(alert)) {
+                document.body.removeChild(alert);
+            }
+        }, 300);
+    }, 5000);
+}
+
+// Add CSS animations
+const style = document.createElement('style');
+style.textContent = `
+    @keyframes slideInRight {
+        from {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+    
+    @keyframes slideOutRight {
+        from {
+            transform: translateX(0);
+            opacity: 1;
+        }
+        to {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+    }
+`;
+// document.head.appendChild(style);
+//             }, 1500);
             
             // Uncomment for actual form submission:
             /*
@@ -128,9 +143,9 @@ function initializeContactForm() {
                 submitBtn.disabled = false;
             });
             */
-        });
-    }
-}
+//         });
+//     }
+// }
 
 // Initialize smooth scrolling
 function initializeSmoothScrolling() {

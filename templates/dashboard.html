@@ -39,7 +39,7 @@
         <div class="hero-content">
             <h1>Smart Animal Disease Prediction with AI</h1>
             <p>Revolutionize your veterinary practices with our cutting-edge AI technology. Get precise disease predictions, health monitoring, treatment recommendations, and expert guidance for optimal animal care.</p>
-            <button class="btn btn-primary" onclick="openPredictionModal()">Start Disease Prediction</button>
+            <button class="btn btn-primary" onclick="window.location.href='{{ url_for('disease_detection') }}'">Start Disease Prediction</button>
         </div>
     </section>
 
@@ -350,90 +350,6 @@
             </div>
         </div>
     </footer>
-
-    <!-- Disease Prediction Modal -->
-    <div id="predictionModal" class="modal">
-        <div class="modal-content">
-            <span class="close">&times;</span>
-            <h2 style="color: #2E8B57; margin-bottom: 2rem;">Animal Disease Prediction</h2>
-            
-            <form id="predictionForm">
-                <div class="form-group">
-                    <label for="animalType">Animal Type:</label>
-                    <select id="animalType" name="animal_type" required>
-                        <option value="">Select Animal Type</option>
-                        <option value="cattle">Cattle</option>
-                        <option value="pig">Pig</option>
-                        <option value="chicken">Chicken</option>
-                        <option value="sheep">Sheep</option>
-                        <option value="goat">Goat</option>
-                        <option value="horse">Horse</option>
-                        <option value="dog">Dog</option>
-                        <option value="cat">Cat</option>
-                    </select>
-                </div>
-                
-                <div class="form-group">
-                    <label for="symptoms">Symptoms (check all that apply):</label>
-                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.5rem; margin-top: 0.5rem;">
-                        <label><input type="checkbox" name="symptoms" value="fever"> Fever</label>
-                        <label><input type="checkbox" name="symptoms" value="lethargy"> Lethargy</label>
-                        <label><input type="checkbox" name="symptoms" value="loss_of_appetite"> Loss of Appetite</label>
-                        <label><input type="checkbox" name="symptoms" value="coughing"> Coughing</label>
-                        <label><input type="checkbox" name="symptoms" value="diarrhea"> Diarrhea</label>
-                        <label><input type="checkbox" name="symptoms" value="vomiting"> Vomiting</label>
-                        <label><input type="checkbox" name="symptoms" value="difficulty_breathing"> Difficulty Breathing</label>
-                        <label><input type="checkbox" name="symptoms" value="skin_lesions"> Skin Lesions</label>
-                        <label><input type="checkbox" name="symptoms" value="lameness"> Lameness</label>
-                        <label><input type="checkbox" name="symptoms" value="discharge"> Nasal/Eye Discharge</label>
-                    </div>
-                </div>
-                
-                <div class="form-group">
-                    <label for="age">Age (in years):</label>
-                    <input type="number" id="age" name="age" min="0" max="30" step="0.1">
-                </div>
-                
-                <div class="form-group">
-                    <label for="weight">Weight (in kg):</label>
-                    <input type="number" id="weight" name="weight" min="0" step="0.1">
-                </div>
-                
-                <div class="form-group">
-                    <label for="temperature">Body Temperature (°C):</label>
-                    <input type="number" id="temperature" name="temperature" min="35" max="45" step="0.1">
-                </div>
-                
-                <div class="form-group">
-                    <label for="additionalInfo">Additional Information:</label>
-                    <textarea id="additionalInfo" name="additional_info" rows="3" placeholder="Any other symptoms or observations..."></textarea>
-                </div>
-                
-                <div class="form-group">
-                    <label>Upload Animal Photo (Optional):</label>
-                    <div class="file-upload" onclick="document.getElementById('photoUpload').click()">
-                        <p>📷 Click to upload photo</p>
-                        <small>Supported formats: JPG, PNG, WebP</small>
-                    </div>
-                    <input type="file" id="photoUpload" name="photo" accept="image/*" style="display: none;" onchange="handleFileUpload(this)">
-                </div>
-                
-                <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem;">
-                    Predict Disease
-                </button>
-            </form>
-            
-            <div class="loading">
-                <div class="spinner"></div>
-                <p>Analyzing symptoms and predicting possible diseases...</p>
-            </div>
-            
-            <div id="predictionResult" class="prediction-result" style="display: none;">
-                <h3>Prediction Results:</h3>
-                <div id="resultContent"></div>
-            </div>
-        </div>
-    </div>
 
     <script>
         // User dropdown toggle functionality
