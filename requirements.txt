@@ -10,6 +10,7 @@ python-dotenv==1.0.0
 pymongo==4.6.0
 bcrypt==4.1.2
 dnspython==2.4.2
+certifi
 flask-session==0.5.0
 torch==2.1.0
 torchvision==0.16.0

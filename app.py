@@ -19,26 +19,55 @@ app = Flask(__name__)
 app.secret_key = 'your-secret-key-change-in-production'  # Change this in production
 
 # MongoDB Configuration
-MONGODB_URI = "mongodb+srv://kunalsurade016_db_user:jc3YqkAHupwV6jk2@authentication.yykrupt.mongodb.net/gorakshaai?retryWrites=true&w=majority"
+MONGODB_URI = "mongodb+srv://kunalsurade016_db_user:umcunBXqOZO3AUK3@animal1.rydpf7k.mongodb.net/?retryWrites=true&w=majority&appName=animal1"
 
-try:
-    # Simple MongoDB connection
-    client = MongoClient(MONGODB_URI)
+# Initialize MongoDB connection with better error handling
+client = None
+db = None
+users_collection = None
+predictions_collection = None
+
+def initialize_mongodb():
+    """Initialize MongoDB connection with the correct credentials"""
+    global client, db, users_collection, predictions_collection
     
-    # Test the connection with a simple ping
-    client.admin.command('ping')
-    db = client['gorakshaai']
-    users_collection = db['users']
-    predictions_collection = db['predictions']
-    print("✅ MongoDB connection successful!")
-except Exception as e:
-    print(f"❌ MongoDB connection failed: {e}")
-    print("⚠️  Starting without database - authentication will not work")
-    # Set None values to prevent crashes
-    client = None
-    db = None
-    users_collection = None
-    predictions_collection = None
+    print("🔄 Initializing MongoDB connection...")
+    
+    try:
+        # Use the corrected MongoDB Atlas connection
+        client = MongoClient(
+            MONGODB_URI,
+            tls=True,
+            tlsAllowInvalidCertificates=True,
+            serverSelectionTimeoutMS=15000,
+            connectTimeoutMS=15000,
+            socketTimeoutMS=15000
+        )
+        
+        # Test the connection
+        client.admin.command('ping')
+        
+        # Initialize database and collections  
+        db = client['gorakshaai']  # Using the same database name for consistency
+        users_collection = db['users']
+        predictions_collection = db['predictions']
+        
+        print("✅ MongoDB connected successfully!")
+        return True
+        
+    except Exception as e:
+        print(f"❌ MongoDB connection failed: {str(e)}")
+        print("⚠️  Starting without database - authentication will not work")
+        
+        # Set globals to None on failure
+        client = None
+        db = None
+        users_collection = None
+        predictions_collection = None
+        return False
+
+# Initialize MongoDB on startup
+initialize_mongodb()
 
 # Configuration
 UPLOAD_FOLDER = 'static/uploads'
@@ -739,4 +768,5 @@ def cow_detection():
     return render_template('cow_detection.html')
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    # Disable use_reloader to prevent socket conflicts with PyTorch on Windows
+    app.run(debug=True, host='0.0.0.0', port=5000, use_reloader=False)
