@@ -66,11 +66,13 @@
                 </div>
 
                 <!-- Future models placeholder -->
-                <div class="animal-card coming-soon">
+                <div class="animal-card" onclick="selectAnimal('dog')">
                     <div class="animal-icon">🐕</div>
                     <h3>Dog</h3>
-                    <p>AI detection models for canine diseases</p>
-                    <div class="coming-soon-badge">Coming Soon</div>
+                    <p>Detect canine diseases including hotspot, mange, and pyoderma</p>
+                    <div class="model-info">
+                        <span class="model-tag">YOLOv8 Model</span>
+                    </div>
                 </div>
 
                 <div class="animal-card coming-soon">
@@ -137,6 +139,8 @@
                 window.location.href = "{{ url_for('cat_detection') }}";
             } else if (animal === 'cow') {
                 window.location.href = "{{ url_for('cow_detection') }}";
+            } else if (animal === 'dog') {
+                window.location.href = "{{ url_for('dog_detection') }}";
             }
         }
     </script>
