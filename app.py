@@ -19,9 +19,9 @@ app = Flask(__name__)
 app.secret_key = 'your-secret-key-change-in-production'  # Change this in production
 
 # MongoDB Configuration
-MONGODB_URI = "mongodb+srv://kunalsurade016_db_user:umcunBXqOZO3AUK3@animal1.rydpf7k.mongodb.net/?retryWrites=true&w=majority&appName=animal1"
+MONGODB_URI = "mongodb+srv://kunalsurade016_db_user:umcunBXqOZO3AUK3@animal1.rydpf7k.mongodb.net/gorakshaai?retryWrites=true&w=majority"
 
-# Initialize MongoDB connection with better error handling
+# Initialize MongoDB connection variables
 client = None
 db = None
 users_collection = None
@@ -34,29 +34,44 @@ def initialize_mongodb():
     print("🔄 Initializing MongoDB connection...")
     
     try:
-        # Use the corrected MongoDB Atlas connection
+        # Create MongoDB client with proper configuration
         client = MongoClient(
             MONGODB_URI,
-            tls=True,
-            tlsAllowInvalidCertificates=True,
-            serverSelectionTimeoutMS=15000,
-            connectTimeoutMS=15000,
-            socketTimeoutMS=15000
+            serverSelectionTimeoutMS=30000,  # 30 seconds
+            connectTimeoutMS=20000,          # 20 seconds
+            socketTimeoutMS=20000,           # 20 seconds
+            maxPoolSize=50,
+            retryWrites=True
         )
         
-        # Test the connection
+        # Test the connection by pinging the admin database
         client.admin.command('ping')
+        print("✅ MongoDB ping successful!")
         
         # Initialize database and collections  
-        db = client['gorakshaai']  # Using the same database name for consistency
+        db = client['gorakshaai']
         users_collection = db['users']
         predictions_collection = db['predictions']
+        
+        # Create indexes for better performance
+        try:
+            users_collection.create_index("email", unique=True)
+            predictions_collection.create_index("user_id")
+            predictions_collection.create_index("created_at")
+            print("✅ Database indexes created successfully!")
+        except Exception as idx_error:
+            print(f"⚠️  Index creation warning: {str(idx_error)}")
+        
+        # Test collections access
+        user_count = users_collection.count_documents({})
+        print(f"✅ Users collection accessible. Current user count: {user_count}")
         
         print("✅ MongoDB connected successfully!")
         return True
         
     except Exception as e:
         print(f"❌ MongoDB connection failed: {str(e)}")
+        print(f"❌ Error type: {type(e).__name__}")
         print("⚠️  Starting without database - authentication will not work")
         
         # Set globals to None on failure
@@ -66,8 +81,25 @@ def initialize_mongodb():
         predictions_collection = None
         return False
 
+def get_db_status():
+    """Check if database is connected and available"""
+    try:
+        if client is None or db is None:
+            return False, "Database not initialized"
+        
+        # Test connection
+        client.admin.command('ping')
+        return True, "Database connected"
+    except Exception as e:
+        return False, f"Database error: {str(e)}"
+
 # Initialize MongoDB on startup
-initialize_mongodb()
+print("🚀 Starting GoRakshaAI application...")
+db_connected = initialize_mongodb()
+if db_connected:
+    print("🎉 Application ready with database!")
+else:
+    print("⚠️  Application starting without database connection")
 
 # Configuration
 UPLOAD_FOLDER = 'static/uploads'
@@ -179,8 +211,12 @@ def login():
     """Handle login form submission"""
     try:
         # Check if database is available
-        if users_collection is None:
-            return jsonify({'success': False, 'message': 'Database connection unavailable. Please try again later.'}), 503
+        is_connected, status_msg = get_db_status()
+        if not is_connected:
+            return jsonify({
+                'success': False, 
+                'message': f'Database connection unavailable: {status_msg}. Please try again later.'
+            }), 503
             
         data = request.get_json() if request.is_json else request.form
         email = data.get('email', '').strip().lower()
@@ -209,6 +245,8 @@ def login():
         session['user_name'] = user['name']
         session['user_email'] = user['email']
         
+        print(f"✅ User logged in successfully: {email}")
+        
         return jsonify({
             'success': True, 
             'message': 'Login successful',
@@ -226,9 +264,13 @@ def signup():
         print("🔍 Signup request received")  # Debug log
         
         # Check if database is available
-        if users_collection is None:
-            print("❌ Database not available")
-            return jsonify({'success': False, 'message': 'Database connection unavailable. Please try again later.'}), 503
+        is_connected, status_msg = get_db_status()
+        if not is_connected:
+            print(f"❌ Database not available: {status_msg}")
+            return jsonify({
+                'success': False, 
+                'message': f'Database connection unavailable: {status_msg}. Please try again later.'
+            }), 503
             
         # Get data from request
         data = request.get_json() if request.is_json else request.form
@@ -315,23 +357,42 @@ def signup():
 
 @app.route('/test-db')
 def test_db():
-    """Test MongoDB connection"""
+    """Test MongoDB connection and show database status"""
     try:
-        # Test connection
-        client.admin.command('ping')
+        # Check database status
+        is_connected, status_msg = get_db_status()
+        
+        if not is_connected:
+            return jsonify({
+                'success': False,
+                'message': f'Database not connected: {status_msg}',
+                'connection_string': MONGODB_URI.replace('umcunBXqOZO3AUK3', '***'),  # Hide password
+                'collections': None,
+                'user_count': 0
+            }), 500
         
         # Test collection access
-        count = users_collection.count_documents({})
+        user_count = users_collection.count_documents({})
+        prediction_count = predictions_collection.count_documents({})
+        
+        # List collections
+        collections = db.list_collection_names()
         
         return jsonify({
             'success': True,
             'message': 'Database connection successful',
-            'user_count': count
+            'database_name': 'gorakshaai',
+            'collections': collections,
+            'user_count': user_count,
+            'prediction_count': prediction_count,
+            'connection_string': MONGODB_URI.replace('umcunBXqOZO3AUK3', '***')  # Hide password
         })
+        
     except Exception as e:
         return jsonify({
             'success': False,
-            'message': f'Database connection failed: {str(e)}'
+            'message': f'Database test failed: {str(e)}',
+            'error_type': type(e).__name__
         }), 500
 
 @app.route('/auth/logout')
@@ -768,5 +829,4 @@ def cow_detection():
     return render_template('cow_detection.html')
 
 if __name__ == '__main__':
-    # Disable use_reloader to prevent socket conflicts with PyTorch on Windows
     app.run(debug=True, host='0.0.0.0', port=5000, use_reloader=False)
