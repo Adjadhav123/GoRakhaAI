@@ -314,12 +314,94 @@
                 if (result.success) {
                     displayResults(result);
                 } else {
-                    alert('Error analyzing image: ' + result.error);
+                    // Enhanced error handling for dog validation
+                    if (result.validation_failed) {
+                        displayValidationError(result);
+                    } else {
+                        displayGeneralError(result);
+                    }
                 }
             } catch (error) {
                 document.getElementById('loadingSpinner').classList.remove('show');
-                alert('Error analyzing image: ' + error.message);
+                displayNetworkError(error);
             }
+        }
+
+        function displayValidationError(result) {
+            const resultsSection = document.getElementById('resultsSection');
+            const resultSummary = document.getElementById('resultSummary');
+            const confidenceBar = document.getElementById('confidenceBar');
+            const confidenceText = document.getElementById('confidenceText');
+            const resultDetails = document.getElementById('resultDetails');
+
+            resultSummary.innerHTML = `
+                <h4 style="color: #dc3545;">⚠️ Not a Dog Image</h4>
+            `;
+
+            // Show low confidence for validation failure
+            const confidence = Math.round((result.confidence || 0) * 100);
+            confidenceBar.style.width = confidence + '%';
+            confidenceBar.style.backgroundColor = '#dc3545';
+            confidenceText.textContent = `${confidence}% Detection Confidence`;
+
+            resultDetails.innerHTML = `
+                <div class="error-message">
+                    <p><strong>${result.error}</strong></p>
+                    <div class="error-tips">
+                        <h5>Tips for better results:</h5>
+                        <ul>
+                            <li>Ensure the image clearly shows a dog</li>
+                            <li>Use good lighting and clear focus</li>
+                            <li>Make sure the dog is the main subject in the image</li>
+                            <li>Avoid images with multiple animals or distracting backgrounds</li>
+                            <li>Try images of dogs with visible health conditions if testing disease detection</li>
+                        </ul>
+                    </div>
+                </div>
+            `;
+
+            resultsSection.classList.add('show');
+            resultsSection.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function displayGeneralError(result) {
+            const resultsSection = document.getElementById('resultsSection');
+            const resultSummary = document.getElementById('resultSummary');
+            const confidenceBar = document.getElementById('confidenceBar');
+            const confidenceText = document.getElementById('confidenceText');
+            const resultDetails = document.getElementById('resultDetails');
+
+            resultSummary.innerHTML = `
+                <h4 style="color: #ffc107;">⚠️ Analysis Issue</h4>
+            `;
+
+            const confidence = Math.round((result.confidence || 0) * 100);
+            confidenceBar.style.width = confidence + '%';
+            confidenceBar.style.backgroundColor = '#ffc107';
+            confidenceText.textContent = confidence > 0 ? `${confidence}% Confidence` : 'Low Quality Detection';
+
+            resultDetails.innerHTML = `
+                <div class="warning-message">
+                    <p><strong>${result.error}</strong></p>
+                    <div class="warning-tips">
+                        <h5>Try:</h5>
+                        <ul>
+                            <li>Using a higher quality image</li>
+                            <li>Ensuring good lighting</li>
+                            <li>Getting a clearer view of the dog</li>
+                            <li>Taking the photo from a closer distance</li>
+                            <li>Making sure the dog fills most of the frame</li>
+                        </ul>
+                    </div>
+                </div>
+            `;
+
+            resultsSection.classList.add('show');
+            resultsSection.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function displayNetworkError(error) {
+            alert('Network error occurred while analyzing image: ' + error.message + '\n\nPlease check your internet connection and try again.');
         }
 
         function displayResults(result) {
@@ -333,12 +415,14 @@
             const mainPrediction = result.predictions[0];
             resultSummary.innerHTML = `
                 <h4>Detected: <span style="color: ${mainPrediction.class === 'healthy' ? '#28a745' : '#dc3545'}">${mainPrediction.class}</span></h4>
+                <p style="color: #28a745; font-size: 0.9em;">✓ Successfully analyzed using dog disease detection model</p>
             `;
 
             // Update confidence bar
             const confidence = Math.round(mainPrediction.confidence * 100);
             confidenceBar.style.width = confidence + '%';
-            confidenceText.textContent = confidence + '% Confidence';
+            confidenceBar.style.backgroundColor = mainPrediction.class === 'healthy' ? '#28a745' : '#dc3545';
+            confidenceText.textContent = confidence + '% Disease Detection Confidence';
 
             // Display all predictions
             let detailsHTML = '<h4>All Detections:</h4>';

@@ -936,39 +936,52 @@ def predict_dog():
             image_bytes = file.read()
             image = Image.open(io.BytesIO(image_bytes)).convert('RGB')
             
-            # Run prediction
+            # Run dog disease detection
             results = models['dog'](image)
             
             # Process results
             predictions = []
             for result in results:
-                for box in result.boxes:
-                    class_id = int(box.cls[0])
-                    confidence = float(box.conf[0])
-                    class_name = result.names[class_id]
-                    
-                    predictions.append({
-                        'class': class_name,
-                        'confidence': confidence
-                    })
+                if result.boxes is not None and len(result.boxes) > 0:
+                    for box in result.boxes:
+                        class_id = int(box.cls[0])
+                        confidence = float(box.conf[0])
+                        class_name = result.names[class_id]
+                        
+                        predictions.append({
+                            'class': class_name,
+                            'confidence': confidence
+                        })
             
             # Sort by confidence
             predictions.sort(key=lambda x: x['confidence'], reverse=True)
             
-            # Check if highest confidence is below 60%
-            if predictions and predictions[0]['confidence'] < 0.6:
-                return jsonify({
-                    'success': False,
-                    'error': 'Image quality is too low or does not contain a proper dog image. Please upload a clearer image of a dog.',
-                    'confidence': predictions[0]['confidence'] if predictions else 0.0
-                })
-            
-            # If no predictions, add a default
+            # Check if this looks like a dog image based on model response
+            # If no detections or very low confidence, likely not a dog image
             if not predictions:
                 return jsonify({
                     'success': False,
-                    'error': 'No dog detected in the image. Please upload a clear image of a dog.',
+                    'error': 'The uploaded image does not appear to contain a dog. Please upload a clear image of a dog for disease detection.',
+                    'validation_failed': True,
                     'confidence': 0.0
+                })
+            
+            # If highest confidence is below 30%, likely not a dog image
+            max_confidence = predictions[0]['confidence']
+            if max_confidence < 0.3:
+                return jsonify({
+                    'success': False,
+                    'error': 'The uploaded image does not appear to contain a dog or the image quality is too low. Please upload a clear image of a dog.',
+                    'validation_failed': True,
+                    'confidence': max_confidence
+                })
+            
+            # If highest confidence is between 30-60%, might be dog but low quality
+            if max_confidence < 0.6:
+                return jsonify({
+                    'success': False,
+                    'error': 'Image quality appears to be low for reliable disease detection. Please upload a clearer image of the dog.',
+                    'confidence': max_confidence
                 })
             
             # Store prediction in database if available

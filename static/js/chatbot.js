@@ -274,6 +274,7 @@ class VeterinaryChatbot {
         // Settings
         const settingsBtn = document.getElementById('settingsBtn');
         const closeSettingsBtn = document.getElementById('closeSettingsBtn');
+        const cancelSettingsBtn = document.getElementById('cancelSettingsBtn');
         
         if (settingsBtn) {
             settingsBtn.addEventListener('click', () => {
@@ -293,6 +294,16 @@ class VeterinaryChatbot {
             console.log('✅ Close settings button listener added');
         } else {
             console.error('❌ Close settings button not found!');
+        }
+
+        if (cancelSettingsBtn) {
+            cancelSettingsBtn.addEventListener('click', () => {
+                console.log('❌ Cancel settings button clicked!');
+                this.closeSettings();
+            });
+            console.log('✅ Cancel settings button listener added');
+        } else {
+            console.error('❌ Cancel settings button not found!');
         }
 
         // Settings changes - only add if elements exist
